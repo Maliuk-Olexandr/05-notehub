@@ -7,7 +7,11 @@ interface PaginationProps {
   forcePage: number;
 }
 
-export default function Pagination({ pageCount, onPageChange, forcePage }: PaginationProps) {
+export default function Pagination({
+  pageCount,
+  onPageChange,
+  forcePage,
+}: PaginationProps) {
   return (
     <ReactPaginate
       breakLabel="..."
@@ -19,14 +23,6 @@ export default function Pagination({ pageCount, onPageChange, forcePage }: Pagin
       marginPagesDisplayed={2}
       pageRangeDisplayed={2}
       containerClassName={css.pagination}
-      pageClassName={css.pageItem}
-      pageLinkClassName={css.pageLink}
-      previousClassName={css.pageItem}
-      previousLinkClassName={css.pageLink}
-      nextClassName={css.pageItem}
-      nextLinkClassName={css.pageLink}
-      breakClassName={css.pageItem}
-      breakLinkClassName={css.pageLink}
       activeClassName={css.active}
     />
   );

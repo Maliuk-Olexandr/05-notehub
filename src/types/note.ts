@@ -6,3 +6,5 @@ export interface Note {
   updatedAt: string;
   tag: 'Todo' | 'Work' | 'Personal' | 'Meeting' | 'Shopping';
 }
+
+export type CreateNote = Omit<Note, 'id' | 'createdAt' | 'updatedAt'>;
