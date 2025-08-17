@@ -17,6 +17,7 @@ import Loader from '../Loader/Loader';
 import ErrorMessage from '../ErrorMessage/ErrorMessage';
 import NoteForm from '../NoteForm/NoteForm';
 import Modal from '../Modal/Modal';
+import NoResult from '../NoResult/NoResult';
 
 export default function App() {
   const [search, setSearch] = useState<string>('');
@@ -66,6 +67,10 @@ export default function App() {
       <main className={css.main}>
         {isLoading && <Loader />}
         {!isLoading && isError && <ErrorMessage />}
+        {!isLoading && !isError && data?.notes.length === 0 && (
+          <NoResult />
+        )}
+
         {isSuccess && data?.notes?.length > 0 && (
           <NoteList notes={data.notes} />
         )}
