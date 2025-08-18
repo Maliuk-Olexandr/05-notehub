@@ -1,33 +1,54 @@
 import css from './NoteForm.module.css';
 import type { Note, CreateNote } from '../../types/note';
 import * as Yup from 'yup';
-import { Formik, Form, Field, ErrorMessage } from 'formik';
+import { Formik, Form, Field, ErrorMessage, type FormikHelpers } from 'formik';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { createNote } from '../../services/noteService';
 
 interface NoteFormProps {
-  onSubmit: (note: CreateNote) => void;
+  onSuccess: (note: Note) => void;
   onCancel: () => void;
 }
 
-const validationSchema = Yup.object(
-  {
-    title: Yup.string().min(3).max(50).required('Title is required'),
-    content: Yup.string().max(500),
-    tag: Yup.mixed<Note['tag']>().oneOf(['Todo', 'Work', 'Personal', 'Meeting', 'Shopping']).required('Tag is required'),
-  }
-);
+const validationSchema = Yup.object({
+  title: Yup.string().min(3).max(50).required('Title is required'),
+  content: Yup.string().max(500, 'Content must be 500 characters or less'),
+  tag: Yup.mixed<Note['tag']>()
+    .oneOf(['Todo', 'Work', 'Personal', 'Meeting', 'Shopping'])
+    .required('Tag is required'),
+});
 
-export default function NoteForm({ onSubmit, onCancel }: NoteFormProps) {
+export default function NoteForm({ onSuccess, onCancel }: NoteFormProps) {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: createNote,
+    onSuccess: (newNote: Note) => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      onSuccess(newNote);
+        },
+    onError: (error) => {
+      console.error(error);
+    },
+  });
 
   return (
-    <Formik
-      initialValues={{ title: '', content: '', tag: 'Todo' as Note['tag'] }}
+    <Formik<CreateNote>
+      initialValues={{ title: '', content: '', tag: 'Todo' }}
       validationSchema={validationSchema}
-      onSubmit={(values, actions) => {
-        onSubmit(values);
-        actions.resetForm();
+      onSubmit={(
+        values: CreateNote,
+        formikHelpers: FormikHelpers<CreateNote>
+      ) => {
+        mutation.mutate(values, {
+          onSuccess: () => {
+            formikHelpers.resetForm();
+            onCancel();
+          },
+        });
       }}
     >
-      {({ isSubmitting }) => (
+      {() => (
         <Form className={css.form}>
           <div className={css.formGroup}>
             <label htmlFor="title">Title</label>
@@ -44,7 +65,11 @@ export default function NoteForm({ onSubmit, onCancel }: NoteFormProps) {
               rows={8}
               className={css.textarea}
             />
-            <ErrorMessage name="content" component="span" className={css.error} />
+            <ErrorMessage
+              name="content"
+              component="span"
+              className={css.error}
+            />
           </div>
 
           <div className={css.formGroup}>
@@ -60,10 +85,18 @@ export default function NoteForm({ onSubmit, onCancel }: NoteFormProps) {
           </div>
 
           <div className={css.actions}>
-            <button type="button" className={css.cancelButton} onClick={onCancel}>
+            <button
+              type="button"
+              className={css.cancelButton}
+              onClick={onCancel}
+            >
               Cancel
             </button>
-            <button type="submit" className={css.submitButton} disabled={isSubmitting}>
+            <button
+              type="submit"
+              className={css.submitButton}
+              disabled={mutation.isPending}
+            >
               Create note
             </button>
           </div>
@@ -72,4 +105,3 @@ export default function NoteForm({ onSubmit, onCancel }: NoteFormProps) {
     </Formik>
   );
 }
-

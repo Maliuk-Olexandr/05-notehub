@@ -1,12 +1,12 @@
 import css from './App.module.css';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   useQuery,
   useMutation,
   useQueryClient,
   keepPreviousData,
 } from '@tanstack/react-query';
-import { useDebounce } from 'use-debounce';
+import { useDebouncedCallback } from 'use-debounce';
 
 import { createNote, fetchNotes } from '../../services/noteService';
 
@@ -18,66 +18,88 @@ import ErrorMessage from '../ErrorMessage/ErrorMessage';
 import NoteForm from '../NoteForm/NoteForm';
 import Modal from '../Modal/Modal';
 import NoResult from '../NoResult/NoResult';
+import type { CreateNote } from '../../types/note';
 
 export default function App() {
-  const [search, setSearch] = useState<string>('');
-  const [page, setPage] = useState<number>(1);
-  const [modal, setModal] = useState<boolean>(false);
-  const perPage = 12;
-
   const queryClient = useQueryClient();
 
-  const mutation = useMutation({
-    mutationFn: (note: Parameters<typeof createNote>[0]) => createNote(note),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
-      setModal(false);
-    },
+  // State
+  const [searchInput, setSearchInput] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const perPage = 12;
+
+  // Query
+  const debouncedSearch = useDebouncedCallback((value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  }, 500);
+
+  const { data, isLoading, isError, isFetching, isSuccess } = useQuery({
+    queryKey: ['notes', searchQuery, currentPage],
+    queryFn: () =>
+      fetchNotes({ search: searchQuery, page: currentPage, perPage }),
+    placeholderData: keepPreviousData,
   });
 
-  const handleCreate = (note: Parameters<typeof createNote>[0]) => {
+  const mutation = useMutation({
+    mutationFn: (note: CreateNote) => createNote(note),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      setModalOpen(false);
+    },
+  });
+  useEffect(() => {
+    if (data && data.totalPages < currentPage) {
+      setCurrentPage(data.totalPages);
+    }
+  }, [data, currentPage]);
+
+  const handleCreate = (note: CreateNote) => {
     mutation.mutate(note);
   };
 
-  const [debouncedSearch] = useDebounce(search, 500);
-
-  const { data, isLoading, isError, isSuccess } = useQuery({
-    queryKey: ['notes', { debouncedSearch, page }],
-    queryFn: () => fetchNotes({ search: debouncedSearch, page, perPage }),
-    placeholderData: keepPreviousData,
-    enabled: true,
-  });
-
-  const totalPages = data?.totalPages || 0;
   return (
     <div className={css.app}>
       <header className={css.toolbar}>
-        <SearchBox value={search} onSearchChange={setSearch} />
-        {isSuccess && totalPages > 1 && (
+        <SearchBox
+          textInput={searchInput}
+          onSearch={value => {
+            setSearchInput(value);
+            debouncedSearch(value);
+          }}
+        />
+        {isSuccess && data.totalPages > 1 && (
           <Pagination
-            pageCount={totalPages}
-            onPageChange={({ selected }) => setPage(selected + 1)}
-            forcePage={page - 1}
+            currentPage={currentPage}
+            totalPages={data.totalPages}
+            onPageChange={setCurrentPage}
           />
         )}
-        <button className={css.button} onClick={() => setModal(true)}>
+        <button
+          className={css.button}
+          onClick={() => setModalOpen(true)}
+          disabled={isLoading || isFetching}
+        >
           Create note +
         </button>
       </header>
       <main className={css.main}>
         {isLoading && <Loader />}
         {!isLoading && isError && <ErrorMessage />}
-        {!isLoading && !isError && data?.notes.length === 0 && (
-          <NoResult />
-        )}
+        {!isLoading && !isError && data?.notes.length === 0 && <NoResult />}
 
         {isSuccess && data?.notes?.length > 0 && (
           <NoteList notes={data.notes} />
         )}
       </main>
-      {modal && (
-        <Modal onClose={() => setModal(false)}>
-          <NoteForm onSubmit={handleCreate} onCancel={() => setModal(false)} />
+      {modalOpen && (
+        <Modal onClose={() => setModalOpen(false)}>
+          <NoteForm
+            onSuccess={handleCreate}
+            onCancel={() => setModalOpen(false)}
+          />
         </Modal>
       )}
     </div>
